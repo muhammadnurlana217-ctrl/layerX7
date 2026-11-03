@@ -17,3 +17,7 @@ Butuh internet saat pertama kali: Transformers.js (jsDelivr), JSZip (cdnjs), dan
 - Gambar di atas 2048 px disusutkan agar RAM HP aman. Tidak ada upscale; warna tidak diubah.
 - Semua layer berukuran sama dengan gambar kerja; tumpuk di posisi 0,0. Posisi objek ada di `bbox` pada metadata.
 - Ini **bukan** file project Alight Motion native. Impor PNG berurutan ke Alight Motion (Media → Gambar), semuanya pada posisi tengah/sama.
+
+## Mode & XML Alight Motion
+- **Mode UI/Screenshot** (default): memisahkan area warna rata besar (latar) dan mengelompokkan elemen kecil yang berdekatan (teks, ikon, avatar). Bagian latar yang tertutup elemen diisi warna rata agar elemen bisa digeser.
+- **alightmotion.xml** dibuat mengikuti struktur contoh XML dari Alight Motion 5.0 (scene + media + shape `.rect`, tiap layer menempati seluruh kanvas). Alamat file memakai `file://<folder>/layers/<nama>.png`, jadi ekstrak ZIP lebih dulu dan isi kolom folder di aplikasi sesuai lokasinya. Jika Alight Motion meminta media diganti, arahkan ke folder `layers`.

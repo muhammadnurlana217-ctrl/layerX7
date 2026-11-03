@@ -26,6 +26,7 @@
 </section>
 <section>
   <h2>Pisahkan layer otomatis</h2>
+  <select class="btn big" id="mode"><option value="ui">Screenshot / desain UI (rapi)</option><option value="foto">Foto (AI segmentasi)</option></select>
   <button class="btn big pri" id="run" disabled>Pisahkan dengan AI</button>
   <progress id="bar" max="100" value="0"></progress>
   <p class="hint" id="stat">Siap.</p>
@@ -42,10 +43,11 @@
 <section>
   <h2>Export</h2>
   <div class="row">
-    <button class="btn pri" id="zip" disabled>ZIP semua layer</button>
+    <button class="btn pri" id="zip" disabled>ZIP (PNG + XML)</button>
     <button class="btn" id="mix" disabled>PNG gabungan</button>
   </div>
-  <p class="hint">ZIP berisi PNG berurutan, composite.png, dan metadata.json. Impor PNG ke Alight Motion berurutan dari layer_01.</p>
+  <input type="text" id="base" class="btn big" style="margin-top:12px;justify-content:flex-start" value="/storage/emulated/0/Download/layerx_export" aria-label="Folder hasil ekstrak ZIP di HP">
+  <p class="hint">Isi kolom di atas dengan lokasi folder tempat ZIP diekstrak di HP. ZIP berisi PNG berurutan, composite.png, dan metadata.json. Impor PNG ke Alight Motion berurutan dari layer_01.</p>
 </section>
 </main>
 <script type="module" src="script.js"></script>

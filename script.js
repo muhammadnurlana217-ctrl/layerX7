@@ -52,19 +52,18 @@ function comps(d,w,h,minA){
   return res;
 }
 
-async function addLayer(name,paint,bb){
+async function addLayer(name,paint,bb,post){
   const fc=cv(W,H),x=fc.getContext('2d');
   x.imageSmoothingQuality='high';paint(x);
   x.globalCompositeOperation='source-in';x.drawImage(src,0,0);
+  if(post){x.globalCompositeOperation='source-over';post(x)}
   const blob=await new Promise(r=>fc.toBlob(r,'image/png'));
   const t=cv(96,Math.max(1,Math.round(96*H/W)));t.getContext('2d').drawImage(fc,0,0,t.width,t.height);
   const thumb=t.toDataURL();fc.width=fc.height=t.width=0;
   layers.push({name,blob,thumb,vis:true,bb});
 }
 
-$('#run').onclick=async()=>{
-  if(!src||busy)return;busy=true;$('#run').disabled=true;
-  try{
+async function runFoto(){
     const s=await getSeg();
     status('Menganalisis gambar…',null);
     const k=Math.min(1,768/Math.max(W,H)),sw=Math.round(W*k),sh=Math.round(H*k);
@@ -91,12 +90,89 @@ $('#run').onclick=async()=>{
       if(j%4==3)render();
     }
     status(`Selesai: ${pick.length} layer. Hasil sesuai kemampuan model; sisihkan atau tambah layer secara manual bila perlu.`,100);
-  }catch(e){
-    console.error(e);
-    status('Gagal: '+(e.message||e)+'. Periksa koneksi internet lalu coba lagi.',0);
+}
+
+function dil(m,w,h,rx,ry){
+  const t=new Uint8Array(w*h),o=new Uint8Array(w*h);
+  for(let y=0;y<h;y++){let c=0;const b=y*w;for(let x=0;x<w+rx;x++){
+    if(x<w)c+=m[b+x];if(x-2*rx-1>=0)c-=m[b+x-2*rx-1];
+    const cx=x-rx;if(cx>=0&&cx<w&&c>0)t[b+cx]=1}}
+  for(let x=0;x<w;x++){let c=0;for(let y=0;y<h+ry;y++){
+    if(y<h)c+=t[y*w+x];if(y-2*ry-1>=0)c-=t[(y-2*ry-1)*w+x];
+    const cy=y-ry;if(cy>=0&&cy<h&&c>0)o[cy*w+x]=255}}
+  return o;
+}
+const mcv=(w,h,fn)=>{const c=cv(w,h),g=c.getContext('2d'),d=g.createImageData(w,h);fn(d.data);g.putImageData(d,0,0);return c};
+
+async function runUI(){
+  const k=Math.min(1,1600/Math.max(W,H)),w=Math.round(W*k),h=Math.round(H*k),N=w*h,kx=W/w,ky=H/h;
+  status('Membaca warna…',null);
+  const sc=cv(w,h),sg=sc.getContext('2d');sg.drawImage(src,0,0,w,h);
+  const px=sg.getImageData(0,0,w,h).data;sc.width=0;
+  const T=28,lab=new Int32Array(N).fill(-1),q=new Int32Array(N),cn=[],sd=[];
+  for(let s=0;s<N;s++){
+    if(lab[s]>=0)continue;
+    const id=cn.length,r=px[s*4],g=px[s*4+1],b=px[s*4+2];let a=0,e=1;q[0]=s;lab[s]=id;
+    const t=j=>{if(lab[j]>=0)return;const p=j*4;
+      if(Math.abs(px[p]-r)<=T&&Math.abs(px[p+1]-g)<=T&&Math.abs(px[p+2]-b)<=T){lab[j]=id;q[e++]=j}};
+    while(a<e){const i=q[a++],x=i%w;if(x>0)t(i-1);if(x<w-1)t(i+1);if(i>=w)t(i-w);if(i<N-w)t(i+w)}
+    cn.push(e);sd.push(r,g,b);
   }
+  status('Memisahkan elemen…',null);
+  const big=cn.map((_,i)=>i).filter(i=>cn[i]>=N*.008).sort((a,b)=>cn[b]-cn[a]).slice(0,12);
+  const isBig=new Uint8Array(cn.length);big.forEach(i=>isBig[i]=1);
+  const det=new Uint8Array(N);for(let i=0;i<N;i++)if(!isBig[lab[i]])det[i]=1;
+  const dm=dil(det,w,h,Math.max(2,Math.round(w*.012)),Math.max(1,Math.round(w*.004)));
+  const groups=comps(dm,w,h,1).map(c=>{
+    const m=c.m.filter(i=>det[i]);let x0=w,y0=h,x1=0,y1=0;
+    for(const i of m){const x=i%w,y=(i/w)|0;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+    return{m,bb:[x0,y0,x1+1,y1+1]};
+  }).filter(c=>c.m.length>=6).sort((a,b)=>b.m.length-a.m.length).slice(0,70);
+  const total=big.length+groups.length;let done=0;
+  const sc2=bb=>[bb[0]*kx|0,bb[1]*ky|0,Math.ceil(bb[2]*kx),Math.ceil(bb[3]*ky)];
+  let n=0;
+  for(const id of big){
+    status(`Membuat layer ${++done}/${total}`,done/total*100);
+    const out=new Uint8Array(N);let a=0,e=0;
+    const push=i=>{if(lab[i]!==id&&!out[i]){out[i]=1;q[e++]=i}};
+    for(let x=0;x<w;x++){push(x);push((h-1)*w+x)}
+    for(let y=0;y<h;y++){push(y*w);push(y*w+w-1)}
+    while(a<e){const i=q[a++],x=i%w;if(x>0)push(i-1);if(x<w-1)push(i+1);if(i>=w)push(i-w);if(i<N-w)push(i+w)}
+    let x0=w,y0=h,x1=0,y1=0;const R=sd[id*3],G=sd[id*3+1],B=sd[id*3+2];
+    const mc=mcv(w,h,d=>{for(let i=0;i<N;i++)if(lab[i]===id||!out[i]){d[i*4+3]=255;
+      const x=i%w,y=(i/w)|0;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}});
+    const hc=mcv(w,h,d=>{for(let i=0;i<N;i++)if(lab[i]!==id&&!out[i]){d[i*4]=R;d[i*4+1]=G;d[i*4+2]=B;d[i*4+3]=255}});
+    await addLayer(`latar ${++n}`,x=>x.drawImage(mc,0,0,W,H),sc2([x0,y0,x1+1,y1+1]),x=>x.drawImage(hc,0,0,W,H));
+    mc.width=hc.width=0;
+  }
+  n=0;
+  for(const c of groups){
+    status(`Membuat layer ${++done}/${total}`,done/total*100);
+    const mc=mcv(w,h,d=>{for(const i of c.m)d[i*4+3]=255});
+    await addLayer(`elemen ${++n}`,x=>x.drawImage(mc,0,0,W,H),sc2(c.bb));mc.width=0;
+    if(done%6===0)render();
+  }
+  status(`Selesai: ${total} layer (${big.length} latar, ${groups.length} elemen). Ganti nama, hapus, atau tambah layer manual bila ada yang kurang.`,100);
+}
+
+$('#run').onclick=async()=>{
+  if(!src||busy)return;busy=true;$('#run').disabled=true;layers=[];cnt=0;
+  try{await($('#mode').value==='ui'?runUI():runFoto())}
+  catch(e){console.error(e);status('Gagal: '+(e.message||e)+'. Jika memakai mode Foto, periksa koneksi internet.',0)}
   busy=false;$('#run').disabled=false;render();
 };
+
+function amXML(){
+  const base=($('#base').value.trim()||'/storage/emulated/0/Download/layerx_export').replace(/\/$/,'');
+  const e=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const f6=v=>v.toFixed(6),T=5000,id0=Date.now();let m='',s='';
+  layers.forEach((l,i)=>{
+    if(!l.vis)return;const f=fname(l,i),u='file://'+base+'/layers/'+f;
+    m+=`  <media uri="${e(u)}" filename="${e(f)}" title="${e(f)}" type="image/png" size="${l.blob.size}" orientation="0" infoUpdated="${id0}" width="${W}" height="${H}" />\r\n`;
+    s+=`  <shape id="${id0+i}" label="${e(l.name)}" startTime="0" endTime="${T}" fillType="media" fillImage="${e(u)}" mediaFillMode="fill" s=".rect">\r\n    <transform>\r\n      <location value="${f6(W/2)},${f6(H/2)},0.000000" />\r\n    </transform>\r\n    <property name="size" type="vec2" value="${f6(W)},${f6(H)}" />\r\n  </shape>\r\n`;
+  });
+  return `<?xml version='1.0' encoding='UTF-8' ?>\r\n<scene title="LayerX Studio" width="${W}" height="${H}" exportWidth="${W}" exportHeight="${H}" precompose="dynamicResolution" bgcolor="#ffffffff" totalTime="${T}" fps="30" modifiedTime="${id0}" amver="1028425" ffver="106" am="com.alightcreative.motion/5.0.273.1028425" amplatform="android" retime="freeze" retimeAdaptFPS="false">\r\n${m}${s}</scene>`;
+}
 
 function bindLasso(){
   let pts=null;const g=ov.getContext('2d');
@@ -173,6 +249,7 @@ $('#zip').onclick=async()=>{
       const f=fname(l,i);z.file('layers/'+f,l.blob);
       meta.layers.push({name:l.name,order:i+1,visible:l.vis,file:'layers/'+f,x:0,y:0,width:W,height:H,bbox:{x:l.bb[0],y:l.bb[1],width:l.bb[2]-l.bb[0],height:l.bb[3]-l.bb[1]}});
     });
+    z.file('alightmotion.xml',amXML());
     z.file('composite.png',await mixBlob());
     z.file('metadata.json',JSON.stringify(meta,null,2));
     save(await z.generateAsync({type:'blob',compression:'STORE'}),'layerx_export.zip');
