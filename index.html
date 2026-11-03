@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LayerX Studio</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+<header><b class="logo">Layer<span>X</span></b> Studio</header>
+<main>
+<section>
+  <h2>Upload gambar</h2>
+  <label class="btn big" for="file">Pilih gambar dari galeri</label>
+  <input id="file" type="file" accept="image/*" hidden>
+  <p class="hint" id="info">Gambar lebih dari 2048 px disusutkan agar hemat RAM.</p>
+</section>
+<section>
+  <h2>Gambar asli</h2>
+  <div class="stage" id="stage"><p class="empty">Belum ada gambar.</p></div>
+  <div class="row">
+    <button class="btn" id="manual" disabled>Seleksi manual: mati</button>
+    <span class="hint">Aktifkan, lalu lingkari area dengan jari.</span>
+  </div>
+</section>
+<section>
+  <h2>Pisahkan layer otomatis</h2>
+  <button class="btn big pri" id="run" disabled>Pisahkan dengan AI</button>
+  <progress id="bar" max="100" value="0"></progress>
+  <p class="hint" id="stat">Siap.</p>
+</section>
+<section>
+  <h2>Hasil gabungan</h2>
+  <label class="chk"><input type="checkbox" id="chk" checked> Tampilkan kotak transparansi</label>
+  <canvas id="comp" class="checker"></canvas>
+</section>
+<section>
+  <h2>Layer manager</h2>
+  <div id="list"><p class="empty">Belum ada layer.</p></div>
+</section>
+<section>
+  <h2>Export</h2>
+  <div class="row">
+    <button class="btn pri" id="zip" disabled>ZIP semua layer</button>
+    <button class="btn" id="mix" disabled>PNG gabungan</button>
+  </div>
+  <p class="hint">ZIP berisi PNG berurutan, composite.png, dan metadata.json. Impor PNG ke Alight Motion berurutan dari layer_01.</p>
+</section>
+</main>
+<script type="module" src="script.js"></script>
+</body>
+</html>
